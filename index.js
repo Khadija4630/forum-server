@@ -4,7 +4,7 @@ const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
 require ('dotenv').config();
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+// const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const port = process.env.PORT || 5000;
 
 app.use(cors());
@@ -23,6 +23,10 @@ async function run() {
     // await client.connect();
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
+
+    const db = client.db('forum'); 
+    const postsCollection = db.collection('postsCollection');
+    const commentsCollection = db.collection('comments');
 
     app.post ('/jwt', async (req, res) => {
         const user = req.body;
@@ -53,6 +57,65 @@ async function run() {
             }
             next();
           }
+
+        //   Posts
+        // app.get ('/posts', async (req, res) => {
+        //     const posts = await postsCollection.find().toArray();
+        //     res.send(posts);
+        //     })
+
+        app.get('/posts', async (req, res) => {
+            const { page = 1, limit = 5, sortBy = "newest",tag } = req.query;
+          
+            try {
+              const skip = (parseInt(page) - 1) * parseInt(limit);
+              const sort = sortBy === "popularity" 
+                ? { voteDifference: -1 } 
+                : { createdAt: -1 };
+                const match = tag ? { tags: tag } : {}; 
+          
+              const posts = await postsCollection.aggregate([
+                { $match: match }, 
+                { $addFields: { voteDifference: { $subtract: ["$upVote", "$downVote"] } } },
+                { $sort: sort },
+                { $skip: skip },
+                { $limit: parseInt(limit) }
+              ]).toArray();
+              
+            //   for (const post of posts) {
+            //     const commentsCount = await commentsCollection.countDocuments({ postTitle: post.title });
+            //     post.commentsCount = commentsCount;
+            //   }
+          
+              res.status(200).json(posts);
+            } catch (err) {
+              console.error(err);
+              res.status(500).json({ message: "Error fetching posts", error: err });
+            }
+          });
+
+          app.get('/posts/tags', async (req, res) => {
+            try {
+                const allPosts = await postsCollection.find().toArray();
+                console.log("Fetched Posts:", allPosts);
+                  // Flatten the tags into a single array
+        const tags = allPosts.flatMap(post => post.tags || []);
+
+        // Log the extracted tags for debugging
+        console.log("Extracted Tags:", tags);
+
+        // Remove duplicates
+        const uniqueTags = [...new Set(tags)];
+
+        // Log the unique tags for debugging
+        console.log("Unique Tags:", uniqueTags);
+
+        res.status(200).json(uniqueTags);
+            } catch (err) {
+                console.error(err);
+                res.status(500).json({ message: "Error fetching tags", error: err });
+            }
+        });
   } finally {
     // await client.close();
   }
