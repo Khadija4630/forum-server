@@ -26,6 +26,7 @@ async function run() {
 
     const db = client.db('forum'); 
     const postsCollection = db.collection('postsCollection');
+    const AnnouncementsCollection = db.collection('AnouncementsCollection');
     const commentsCollection = db.collection('comments');
 
     app.post ('/jwt', async (req, res) => {
@@ -97,18 +98,8 @@ async function run() {
           app.get('/posts/tags', async (req, res) => {
             try {
                 const allPosts = await postsCollection.find().toArray();
-                console.log("Fetched Posts:", allPosts);
-                  // Flatten the tags into a single array
         const tags = allPosts.flatMap(post => post.tags || []);
-
-        // Log the extracted tags for debugging
-        console.log("Extracted Tags:", tags);
-
-        // Remove duplicates
         const uniqueTags = [...new Set(tags)];
-
-        // Log the unique tags for debugging
-        console.log("Unique Tags:", uniqueTags);
 
         res.status(200).json(uniqueTags);
             } catch (err) {
@@ -116,6 +107,35 @@ async function run() {
                 res.status(500).json({ message: "Error fetching tags", error: err });
             }
         });
+        app.get('/announcements', async (req, res) => {
+            try {
+              const announcements = await AnnouncementsCollection.find().toArray();
+              res.status(200).json(announcements);
+            } catch (error) {
+              console.error('Error fetching announcements:', error);
+              res.status(500).json({ message: 'Internal Server Error' });
+            }
+          });
+      
+          
+          app.post('/announcements', async (req, res) => {
+            const { authorImage, authorName, title, description } = req.body;
+          
+            const newAnnouncement = new Announcement({
+              authorImage,
+              authorName,
+              title,
+              description,
+              createdAt: new Date(),
+            });
+          
+            try {
+              await newAnnouncement.save();
+              res.status(201).json(newAnnouncement);
+            } catch (error) {
+              res.status(500).json({ message: error.message });
+            }
+          });
   } finally {
     // await client.close();
   }
