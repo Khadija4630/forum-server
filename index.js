@@ -107,6 +107,7 @@ async function run() {
             }
           });
 
+          
           app.get('/posts/tags', async (req, res) => {
             try {
                 const allPosts = await postsCollection.find().toArray();
