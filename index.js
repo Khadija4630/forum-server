@@ -27,7 +27,8 @@ async function run() {
     const db = client.db('forum'); 
     const postsCollection = db.collection('postsCollection');
     const AnnouncementsCollection = db.collection('AnouncementsCollection');
-    const commentsCollection = db.collection('comments');
+    const commentsCollection = db.collection('commentsCollection');
+    const usersCollection = db.collection('usersCollection');
 
     app.post ('/jwt', async (req, res) => {
         const user = req.body;
@@ -65,6 +66,17 @@ async function run() {
         //     res.send(posts);
         //     })
 
+        app.get("/comments/:postId", async (req, res) => {
+            const { postId } = req.params;
+            try {
+                const comments = await commentsCollection.find({ postId }).toArray();
+                res.status(200).json(comments);
+            } catch (error) {
+                res.status(500).json({ message: "Error fetching comments" });
+            }
+        });
+        
+
         app.get('/posts', async (req, res) => {
             const { page = 1, limit = 5, sortBy = "newest",tag } = req.query;
           
@@ -83,10 +95,10 @@ async function run() {
                 { $limit: parseInt(limit) }
               ]).toArray();
               
-            //   for (const post of posts) {
-            //     const commentsCount = await commentsCollection.countDocuments({ postTitle: post.title });
-            //     post.commentsCount = commentsCount;
-            //   }
+              for (const post of posts) {
+                const commentsCount = await commentsCollection.countDocuments({ postTitle: post.title });
+                post.commentsCount = commentsCount;
+              }
           
               res.status(200).json(posts);
             } catch (err) {
@@ -107,6 +119,39 @@ async function run() {
                 res.status(500).json({ message: "Error fetching tags", error: err });
             }
         });
+
+        app.post("/posts", async (req, res) => { 
+            const post = req.body;
+
+            const result = await postsCollection.insertOne(post);
+            res.status(201).json({ message: "Post created successfully" });
+            res.json(result);
+        });
+
+        app.get("/posts/user/:email", async (req, res) => {
+            const email = req.params.email;
+            const posts = await postsCollection.find({ authorEmail: email }).toArray();
+            res.status(200).json(posts);
+        });
+
+        app.get("/posts/count/:email", async (req, res) => {
+            const email = req.params.email;
+            const postCount = await postsCollection.countDocuments({ authorEmail: email });
+            res.status(200).json({ count: postCount });
+        });
+
+        app.delete("/posts/:id", async (req, res) => {
+            const id = req.params.id;
+            const result = await postsCollection.deleteOne({ _id: new ObjectId(id) });
+
+            if (result.deletedCount === 0) {
+                return res.status(404).json({ message: "Post not found" });
+            }
+
+            res.status(200).json({ message: "Post deleted successfully" });
+        });
+
+
         app.get('/announcements', async (req, res) => {
             try {
               const announcements = await AnnouncementsCollection.find().toArray();
@@ -136,6 +181,77 @@ async function run() {
               res.status(500).json({ message: error.message });
             }
           });
+
+          app.get ('/users'), async (req, res) => {
+            try {
+                const users = await usersCollection.find().toArray();
+                res.status(200).json(users);
+                } catch (error) {
+                    console.error('Error fetching users:', error);
+                    res.status(500).json({ message: 'Internal Server Error' });
+                    };
+                    };
+
+
+
+          app.post('/users', async (req, res) => {
+            const user = req.body;
+            const query = { email: user.email }
+            const existingUser = await usersCollection.findOne(query);
+            if (existingUser) {
+              return res.send({ message: 'User already exists here ', user: existingUser, insertedId: null })
+            }
+            const newUser = 
+            {...user,
+             badge: "Bronze",
+              isMember: false };
+            const result = await usersCollection.insertOne(newUser);
+            res.send(result);
+          });
+
+          app.get("/users/:email", async (req, res) => {
+            const { email } = req.params;
+        
+            try {
+                const user = await usersCollection.findOne({ email });
+                if (!user) {
+                    return res.status(404).json({ message: "User not found" });
+                }
+        
+                res.status(200).json(user);
+            } catch (error) {
+                console.error("Error fetching user:", error.message);
+                res.status(500).json({ message: "Failed to fetch user" });
+            }
+        });
+
+        app.patch("/users/:email", async (req, res) => {
+            const { email } = req.params;
+            const { isMember } = req.body;
+        
+            try {
+                const updateDoc = {
+                    $set: {
+                        isMember,
+                        badge: isMember ? "Gold" : "Bronze",
+                    },
+                };
+        
+                const result = await usersCollection.updateOne({ email }, updateDoc);
+        
+                if (result.matchedCount === 0) {
+                    return res.status(404).json({ message: "User not found" });
+                }
+        
+                res.status(200).json({ message: "User membership updated successfully" });
+            } catch (error) {
+                console.error("Error updating membership:", error.message);
+                res.status(500).json({ message: "Failed to update membership" });
+            }
+        });
+        
+        
+      
   } finally {
     // await client.close();
   }
