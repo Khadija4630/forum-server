@@ -244,7 +244,7 @@ async function run() {
                 // const result = await usersCollection.updateOne({ email }, updateDoc);
                 const result = await usersCollection.updateOne(
                     { email },
-                    { $set: { isMember } ,
+                    { $set:{ isMember: true } ,
                 $set: { badge: "Gold" } }
                 );
         
@@ -273,6 +273,23 @@ async function run() {
                 res.status(500).json({ message: "Failed to search for users" });
             }
         });
+
+        app.get("/users/admin/:email", async (req, res) => {
+            const { email } = req.params;
+        
+            try {
+                const user = await usersCollection.findOne({ email });
+                if (!user) {
+                    return res.status(200).json({ admin: false }); 
+                    }
+                    const isAdmin = user.role === "admin";
+                res.status(200).json({ admin: isAdmin });
+            } catch (error) {
+                console.error("Error checking admin status:", error.message);
+                res.status(500).json({ message: "Failed to check admin status" });
+            }
+        });
+        
 
         app.get("/tags", async (req, res) => {
             try {
