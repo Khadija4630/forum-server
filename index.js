@@ -4,7 +4,7 @@ const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
 require ('dotenv').config();
-// const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const port = process.env.PORT || 5000;
 
 app.use(cors());
@@ -107,7 +107,7 @@ async function run() {
             }
           });
 
-          
+
           app.get('/posts/tags', async (req, res) => {
             try {
                 const allPosts = await postsCollection.find().toArray();
@@ -231,14 +231,19 @@ async function run() {
             const { isMember } = req.body;
         
             try {
-                const updateDoc = {
-                    $set: {
-                        isMember,
-                        badge: isMember ? "Gold" : "Bronze",
-                    },
-                };
+                // const updateDoc = {
+                //     $set: {
+                //         isMember,
+                //         badge: isMember ? "Gold" : "Bronze",
+                //     },
+                // };
         
-                const result = await usersCollection.updateOne({ email }, updateDoc);
+                // const result = await usersCollection.updateOne({ email }, updateDoc);
+                const result = await usersCollection.updateOne(
+                    { email },
+                    { $set: { isMember } ,
+                $set: { badge: "Gold" } }
+                );
         
                 if (result.matchedCount === 0) {
                     return res.status(404).json({ message: "User not found" });
@@ -248,6 +253,33 @@ async function run() {
             } catch (error) {
                 console.error("Error updating membership:", error.message);
                 res.status(500).json({ message: "Failed to update membership" });
+            }
+        });
+
+        // app.post ('/create-payment-intent', async (req, res) => {
+        //     const {price} = req.body;
+        //     const amount = parseInt(price * 100); 
+        //     const paymentIntent = await stripe.paymentIntents.create({
+        //         amount:amount,
+        //         currency: 'usd',
+        //         payment_method_types: ['card'],
+        //         });
+        //         res.status(201).json({clientSecret: paymentIntent.client_secret})
+        // })
+        app.post("/create-payment-intent", async (req, res) => {
+            const { email, amount } = req.body;
+        
+            try {
+                const paymentIntent = await stripe.paymentIntents.create({
+                    amount,
+                    currency: "usd",
+                    payment_method_types: ["card"],
+                    receipt_email: email,
+                });
+        
+                res.status(200).json(paymentIntent.client_secret);
+            } catch (error) {
+                res.status(500).json({ message: error.message });
             }
         });
         
