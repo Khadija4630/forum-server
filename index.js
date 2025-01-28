@@ -152,6 +152,8 @@ async function run() {
                 return res.status(404).json({ message: "Post not found" });
             }
 
+
+
             res.status(200).json({ message: "Post deleted successfully" });
         });
 
