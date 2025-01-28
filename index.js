@@ -29,6 +29,9 @@ async function run() {
     const AnnouncementsCollection = db.collection('AnouncementsCollection');
     const commentsCollection = db.collection('commentsCollection');
     const usersCollection = db.collection('usersCollection');
+    const tagsCollection = db.collection('tagsCollection');
+    const reportsCollection = db.collection('reportsCollection');
+    const announcementsCollection = db.collection('announcementsCollection');
 
     app.post ('/jwt', async (req, res) => {
         const user = req.body;
@@ -256,6 +259,57 @@ async function run() {
             }
         });
 
+        app.get("/users/search/:username", async (req, res) => {
+            const { username } = req.params;
+        
+            try {
+                const users = await usersCollection
+                    .find({ name: { $regex: username, $options: "i" } })
+                    .toArray();
+        
+                res.status(200).json(users);
+            } catch (error) {
+                console.error("Error searching for users:", error.message);
+                res.status(500).json({ message: "Failed to search for users" });
+            }
+        });
+
+        app.get("/tags", async (req, res) => {
+            try {
+                const tags = await tagsCollection.find().toArray();
+                res.status(200).json(tags);
+            } catch (error) {
+                console.error("Error fetching tags:", error.message);
+                res.status(500).json({ message: "Failed to fetch tags" });
+            }
+        });
+        
+        app.post("/tags", async (req, res) => {
+            const { name } = req.body;
+        
+            try {
+                const result = await tagsCollection.insertOne({ name });
+                res.status(201).json({ message: "Tag added successfully", tag: result.ops[0] });
+            } catch (error) {
+                console.error("Error adding tag:", error.message);
+                res.status(500).json({ message: "Failed to add tag" });
+            }
+        });
+        
+        app.delete("/tags/:id", async (req, res) => {
+            const { id } = req.params;
+        
+            try {
+                const result = await tagsCollection.deleteOne({ _id: new ObjectId(id) });
+                res.status(200).json({ message: "Tag deleted successfully" });
+            } catch (error) {
+                console.error("Error deleting tag:", error.message);
+                res.status(500).json({ message: "Failed to delete tag" });
+            }
+        });
+        
+        
+
         // app.post ('/create-payment-intent', async (req, res) => {
         //     const {price} = req.body;
         //     const amount = parseInt(price * 100); 
@@ -282,6 +336,53 @@ async function run() {
                 res.status(500).json({ message: error.message });
             }
         });
+
+        app.get("/admin/stats", async (req, res) => {
+            try {
+                const postCount = await postsCollection.countDocuments();
+                const commentCount = await commentsCollection.countDocuments();
+                const userCount = await usersCollection.countDocuments();
+        
+                res.status(200).json({
+                    posts: postCount,
+                    comments: commentCount,
+                    users: userCount,
+                });
+            } catch (error) {
+                console.error("Error fetching stats:", error.message);
+                res.status(500).json({ message: "Failed to fetch statistics" });
+            }
+        });
+        
+
+
+app.get("/reports", async (req, res) => {
+    const reports = await reportsCollection.find().toArray();
+    res.status(200).json(reports);
+});
+
+app.patch("/reports/:id", async (req, res) => {
+    const { id } = req.params;
+    const result = await reportsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { resolved: true } }
+    );
+    res.status(200).json({ message: "Report resolved successfully" });
+});
+
+app.delete("/reports/:id", async (req, res) => {
+    const { id } = req.params;
+    const result = await reportsCollection.deleteOne({ _id: new ObjectId(id) });
+    res.status(200).json({ message: "Report deleted successfully" });
+});
+
+
+app.post("/announcements", async (req, res) => {
+    const announcement = req.body;
+    const result = await announcementsCollection.insertOne(announcement);
+    res.status(201).json({ message: "Announcement created successfully" });
+});
+
         
         
       
