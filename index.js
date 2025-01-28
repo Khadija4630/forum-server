@@ -134,8 +134,18 @@ async function run() {
 
         app.get("/posts/user/:email", async (req, res) => {
             const email = req.params.email;
-            const posts = await postsCollection.find({ authorEmail: email }).toArray();
-            res.status(200).json(posts);
+            const {page=1,limit =10} =req.query;
+            const skip =(page-1)*limit
+            const posts = await postsCollection
+            .find({ authorEmail: email })
+            .skip(skip)
+            .limit(parseInt(limit))
+            .toArray();
+            const totalPosts = await postsCollection.countDocuments({ authorEmail: email });
+            res.status(200).json({ posts, totalPosts,
+                totalPages:Math.ceil(totalPosts/limit),
+                currentPage:parseInt(page),
+            });
         });
 
         app.get("/posts/count/:email", async (req, res) => {
