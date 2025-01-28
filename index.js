@@ -139,6 +139,7 @@ async function run() {
             const posts = await postsCollection
             .find({ authorEmail: email })
             .skip(skip)
+
             .limit(parseInt(limit))
             .toArray();
             const totalPosts = await postsCollection.countDocuments({ authorEmail: email });
