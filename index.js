@@ -7,7 +7,13 @@ require ('dotenv').config();
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const port = process.env.PORT || 5000;
 
-app.use(cors());
+app.use(cors({
+    origin: ["https://forum-12-8aedb.web.app",
+        'https://forum-12-8aedb.firebaseapp.com',
+      ],
+      credentials: true,
+    })
+);
 app.use(express.json());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.q2nbs.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -21,7 +27,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // await client.connect();
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
     const db = client.db('forum'); 
@@ -63,11 +69,6 @@ async function run() {
             next();
           }
 
-        //   Posts
-        // app.get ('/posts', async (req, res) => {
-        //     const posts = await postsCollection.find().toArray();
-        //     res.send(posts);
-        //     })
 
         app.get("/comments/:postId", async (req, res) => {
             const { postId } = req.params;
@@ -80,15 +81,18 @@ async function run() {
         });
         
 
-        app.get('/posts', async (req, res) => {
-            const { page = 1, limit = 5, sortBy = "newest",tag } = req.query;
+   app.get('/posts', async (req, res) => {
+            const { page = 1, limit = 5, sortBy = "newest", query } = req.query;
+            const decodedQuery = query ? decodeURIComponent(query) : '';
           
             try {
               const skip = (parseInt(page) - 1) * parseInt(limit);
               const sort = sortBy === "popularity" 
                 ? { voteDifference: -1 } 
                 : { createdAt: -1 };
-                const match = tag ? { tags: tag } : {}; 
+               
+const match = decodedQuery ? { tags: { $in: decodedQuery.split(',') } } : {};
+                // const match = query ? { tags: { $in: query.split(',') } } : {};
           
               const posts = await postsCollection.aggregate([
                 { $match: match }, 
@@ -108,28 +112,37 @@ async function run() {
               console.error(err);
               res.status(500).json({ message: "Error fetching posts", error: err });
             }
-          });
+          });     
 
+        // app.get('/posts', async (req, res) => {
+        //     try {
+        //         const posts = await postsCollection.find().toArray();
+        //         res.status(200).json(posts);
+        //     } catch (err) {
+        //         console.error(err);
+        //         res.status(500).json({ message: "Error fetching posts", error: err });
+        //     }
+        // });
+        
 
-          app.get('/posts/tags', async (req, res) => {
-            try {
-                const allPosts = await postsCollection.find().toArray();
-        const tags = allPosts.flatMap(post => post.tags || []);
-        const uniqueTags = [...new Set(tags)];
+        //   app.get('/posts/tags', async (req, res) => {
+        //     try {
+        //         const allPosts = await postsCollection.find().toArray();
+        // const tags = allPosts.flatMap(post => post.tags || []);
+        // const uniqueTags = [...new Set(tags)];
 
-        res.status(200).json(uniqueTags);
-            } catch (err) {
-                console.error(err);
-                res.status(500).json({ message: "Error fetching tags", error: err });
-            }
-        });
+        // res.status(200).json(uniqueTags);
+        //     } catch (err) {
+        //         console.error(err);
+        //         res.status(500).json({ message: "Error fetching tags", error: err });
+        //     }
+        // });
 
         app.post("/posts", async (req, res) => { 
             const post = req.body;
 
             const result = await postsCollection.insertOne(post);
-            res.status(201).json({ message: "Post created successfully" });
-            res.json(result);
+            res.status(201).json({ message: "Post created successfully",result });
         });
 
         app.get("/posts/user/:email", async (req, res) => {
@@ -163,8 +176,6 @@ async function run() {
                 return res.status(404).json({ message: "Post not found" });
             }
 
-
-
             res.status(200).json({ message: "Post deleted successfully" });
         });
 
@@ -180,7 +191,7 @@ async function run() {
           });
       
           
-          app.post('/announcements', async (req, res) => {
+          app.post('/announcements',verifyToken,verifyAdmin, async (req, res) => {
             const { authorImage, authorName, title, description } = req.body;
           
             const newAnnouncement = new Announcement({
@@ -199,16 +210,37 @@ async function run() {
             }
           });
 
-          app.get ('/users'), async (req, res) => {
-            try {
-                const users = await usersCollection.find().toArray();
-                res.status(200).json(users);
-                } catch (error) {
-                    console.error('Error fetching users:', error);
-                    res.status(500).json({ message: 'Internal Server Error' });
-                    };
-                    };
+          app.post("/make-announcements", async (req, res) => {
+            const announcement = req.body;
+            const result = await announcementsCollection.insertOne(announcement);
+            res.status(201).json({ message: "Announcement created successfully",result });
+        });
 
+        //   app.get ('/users'), async (req, res) => {
+        //     // try {
+        //         const users = await 
+        //         usersCollection.find().toArray();
+        //         // if (usersCount.length === 0) {
+        //         //     return res.status(404).json({ message: 'No users found' });
+        //         //   }
+        //         res.status(200).json(users);
+        //         // console.log( usersCount);
+        //         // res.status(201).json( users );
+        //         // } catch (error) {
+        //         //     console.error('Error fetching users:', error);
+        //         //     res.status(500).json({ message: 'Internal Server Error' });
+        //         //     };
+        //             };
+
+        app.get('/users', async (req, res) => {
+            try {
+              const users = await usersCollection.find().toArray();
+              res.status(200).json(users);
+            } catch (error) {
+              console.error('Error fetching announcements:', error);
+              res.status(500).json({ message: 'Internal Server Error' });
+            }
+          });
 
 
           app.post('/users', async (req, res) => {
@@ -242,30 +274,26 @@ async function run() {
             }
         });
 
-        app.patch("/users/:email", async (req, res) => {
+        app.patch("/users/:email",verifyToken, async (req, res) => {
             const { email } = req.params;
-            const { isMember } = req.body;
+            const { role} = req.body;
         
             try {
-                // const updateDoc = {
-                //     $set: {
-                //         isMember,
-                //         badge: isMember ? "Gold" : "Bronze",
-                //     },
-                // };
-        
-                // const result = await usersCollection.updateOne({ email }, updateDoc);
+               
+                // const user = await usersCollection.findOne({ email });
+                // if (!user) {
+                //   return res.status(404).json({ message: "User not found" });
+                // }
                 const result = await usersCollection.updateOne(
                     { email },
-                    { $set:{ isMember: true } ,
-                $set: { badge: "Gold" } }
+                    { $set:{role}}
                 );
         
                 if (result.matchedCount === 0) {
                     return res.status(404).json({ message: "User not found" });
                 }
         
-                res.status(200).json({ message: "User membership updated successfully" });
+                res.status(200).json({ message: "User became admin" });
             } catch (error) {
                 console.error("Error updating membership:", error.message);
                 res.status(500).json({ message: "Failed to update membership" });
@@ -287,7 +315,7 @@ async function run() {
             }
         });
 
-        app.get("/users/admin/:email", async (req, res) => {
+        app.get("/users/admin/:email",async (req, res) => {
             const { email } = req.params;
         
             try {
@@ -314,7 +342,7 @@ async function run() {
             }
         });
         
-        app.post("/tags", async (req, res) => {
+        app.post("/tags",verifyToken, async (req, res) => {
             const { name } = req.body;
         
             try {
@@ -326,12 +354,12 @@ async function run() {
             }
         });
         
-        app.delete("/tags/:id", async (req, res) => {
+        app.delete("/tags/:id",verifyToken, async (req, res) => {
             const { id } = req.params;
         
             try {
                 const result = await tagsCollection.deleteOne({ _id: new ObjectId(id) });
-                res.status(200).json({ message: "Tag deleted successfully" });
+                res.status(200).json({ message: "Tag deleted successfully" },result);
             } catch (error) {
                 console.error("Error deleting tag:", error.message);
                 res.status(500).json({ message: "Failed to delete tag" });
@@ -350,7 +378,7 @@ async function run() {
         //         });
         //         res.status(201).json({clientSecret: paymentIntent.client_secret})
         // })
-        app.post("/create-payment-intent", async (req, res) => {
+        app.post("/create-payment-intent",verifyToken, async (req, res) => {
             const { email, amount } = req.body;
         
             try {
@@ -369,15 +397,11 @@ async function run() {
 
         app.get("/admin/stats", async (req, res) => {
             try {
-                const postCount = await postsCollection.countDocuments();
-                const commentCount = await commentsCollection.countDocuments();
-                const userCount = await usersCollection.countDocuments();
+                const posts = await postsCollection.countDocuments();
+                const comments = await commentsCollection.countDocuments();
+                const users = await usersCollection.countDocuments();
         
-                res.status(200).json({
-                    posts: postCount,
-                    comments: commentCount,
-                    users: userCount,
-                });
+                res.status(200).json({ posts, comments, users });
             } catch (error) {
                 console.error("Error fetching stats:", error.message);
                 res.status(500).json({ message: "Failed to fetch statistics" });
@@ -391,27 +415,24 @@ app.get("/reports", async (req, res) => {
     res.status(200).json(reports);
 });
 
-app.patch("/reports/:id", async (req, res) => {
+app.patch("/reports/:id",verifyToken,verifyAdmin, async (req, res) => {
     const { id } = req.params;
     const result = await reportsCollection.updateOne(
         { _id: new ObjectId(id) },
         { $set: { resolved: true } }
     );
-    res.status(200).json({ message: "Report resolved successfully" });
+    res.status(200).json({ message: "Report resolved successfully",result });
 });
 
-app.delete("/reports/:id", async (req, res) => {
+app.delete("/reports/:id",verifyToken,verifyAdmin, async (req, res) => {
     const { id } = req.params;
     const result = await reportsCollection.deleteOne({ _id: new ObjectId(id) });
-    res.status(200).json({ message: "Report deleted successfully" });
+    res.status(200).json({ message: "Report deleted successfully",result });
 });
 
 
-app.post("/announcements", async (req, res) => {
-    const announcement = req.body;
-    const result = await announcementsCollection.insertOne(announcement);
-    res.status(201).json({ message: "Announcement created successfully" });
-});
+
+
 
         
         
