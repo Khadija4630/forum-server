@@ -168,6 +168,29 @@ const match = decodedQuery ? { tags: { $in: decodedQuery.split(',') } } : {};
             res.status(200).json({ count: postCount });
         });
 
+        app.get("/posts/:id", async (req, res) => {
+            const id = req.params.id;
+            const post = await postsCollection.findOne({ _id: new ObjectId(id) });
+
+            if (!post) {
+                return res.status(404).json({ message: "Post not found" });
+            }
+
+            res.status(200).json(post);
+        });
+        app.patch("/posts/:id", async (req, res) => {
+          const id = req.params.id;
+          const update = req.body;
+          const result = await postsCollection.updateOne(
+            { _id: new ObjectId(id) },
+            { $set: update }
+          );
+          if (result.matchedCount === 0) {
+            return res.status(404).json({ message: "Post not found" });
+            }
+            res.status(200).json({ message: "Post updated successfully" });
+            });
+
         app.delete("/posts/:id", async (req, res) => {
             const id = req.params.id;
             const result = await postsCollection.deleteOne({ _id: new ObjectId(id) });
